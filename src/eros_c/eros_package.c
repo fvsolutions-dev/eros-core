@@ -27,7 +27,7 @@ eros_package_t *eros_package_new(uint8_t *data, size_t size)
   uint8_t *data_buffer = malloc(size + sizeof(eros_header_t));
   if (data_buffer == NULL)
   {
-    free(data_buffer);
+    free(package);   // was free(data_buffer) — freed NULL and leaked the package
     return NULL;
   }
 
@@ -80,24 +80,27 @@ void eros_package_encode_header(eros_package_t *package)
   header->sequence_number = package->sequence_number;
 }
 
+/* The reference count is shared across every subscriber queue a package is
+ * fanned out to, and those subscribers release from different tasks on
+ * different cores (CDC worker, HID worker, disk-log worker...). All counter
+ * ops are atomic and eros_package_delete decides ownership from the value
+ * RETURNED by its own decrement — the old decrement-then-reread pattern let
+ * two concurrent releases both observe zero and double-free the package
+ * (tlsf assert "block already marked as free"). */
 void eros_package_increase_reference(eros_package_t *package)
 {
-  package->reference_count++;
+  __atomic_add_fetch(&package->reference_count, 1, __ATOMIC_RELAXED);
 }
 
 void eros_package_decrease_reference(eros_package_t *package)
 {
-  if (package->reference_count > 0)
-  {
-    package->reference_count--;
-  }
+  __atomic_fetch_sub(&package->reference_count, 1, __ATOMIC_ACQ_REL);
 }
 
 void eros_package_delete(eros_package_t *package)
 {
-  eros_package_decrease_reference(package);
-
-  if (package->reference_count == 0)
+  uint8_t prev = __atomic_fetch_sub(&package->reference_count, 1, __ATOMIC_ACQ_REL);
+  if (prev == 1)
   {
     free(package->data - sizeof(eros_header_t));
     free(package);
