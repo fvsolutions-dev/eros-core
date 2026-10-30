@@ -80,24 +80,30 @@ void eros_package_encode_header(eros_package_t *package)
   header->sequence_number = package->sequence_number;
 }
 
+// A package can be shared by endpoints whose tasks run on different cores: the count changes
+// atomically
 void eros_package_increase_reference(eros_package_t *package)
 {
-  package->reference_count++;
+  __atomic_fetch_add(&package->reference_count, 1, __ATOMIC_RELAXED);
 }
 
+// Not below 0: compare and swap, so a count another task has just taken to 0 stays there
 void eros_package_decrease_reference(eros_package_t *package)
 {
-  if (package->reference_count > 0)
+  uint8_t count = __atomic_load_n(&package->reference_count, __ATOMIC_RELAXED);
+
+  while (count > 0 &&
+         !__atomic_compare_exchange_n(&package->reference_count, &count, count - 1, false,
+                                      __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))
   {
-    package->reference_count--;
   }
 }
 
+// The last owner frees it: counting down and testing are one step, so two tasks cannot both
+// see 0 and free it twice
 void eros_package_delete(eros_package_t *package)
 {
-  eros_package_decrease_reference(package);
-
-  if (package->reference_count == 0)
+  if (__atomic_sub_fetch(&package->reference_count, 1, __ATOMIC_ACQ_REL) == 0)
   {
     free(package->data - sizeof(eros_header_t));
     free(package);
