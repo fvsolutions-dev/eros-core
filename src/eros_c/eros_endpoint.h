@@ -82,6 +82,8 @@ struct eros_endpoint_t
     eros_worker_endpoint_t worker_endpoint;
   } endpoint;
   void *user_data;
+  // Packages a full queue turned away, since the endpoint was made (buffered endpoints)
+  uint32_t dropped;
 };
 
 eros_endpoint_t *eros_buffered_endpoint_new(int id, eros_router_t *router,

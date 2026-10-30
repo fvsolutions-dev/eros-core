@@ -403,6 +403,8 @@ int eros_endpoint_send(eros_endpoint_t *endpoint, eros_package_t *package,
                               timeout_ms))
     {
       eros_package_decrease_reference(package);
+      // Publishers on several tasks at once: counted atomically
+      __atomic_fetch_add(&endpoint->dropped, 1, __ATOMIC_RELAXED);
       return -1;
     }
     return 0;
@@ -414,6 +416,8 @@ int eros_endpoint_send(eros_endpoint_t *endpoint, eros_package_t *package,
                               &package, timeout_ms))
     {
       eros_package_decrease_reference(package);
+      // Publishers on several tasks at once: counted atomically
+      __atomic_fetch_add(&endpoint->dropped, 1, __ATOMIC_RELAXED);
       return -1;
     }
 
