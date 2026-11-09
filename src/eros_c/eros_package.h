@@ -54,4 +54,11 @@ void eros_package_increase_reference(eros_package_t *package);
 eros_package_t *eros_headered_package_new(uint8_t *data, size_t size);
 void eros_package_encode_header(eros_package_t *package);
 
+/**
+ * @brief The package as a frame on the wire: its header and its data, one buffer of *size bytes.
+ * The header is the one last written into it (eros_package_encode_header();
+ * eros_buffered_gateway_endpoint_receive() writes it).
+ */
+uint8_t *eros_package_frame(eros_package_t *package, size_t *size);
+
 #endif // EROS_PACKAGE_H

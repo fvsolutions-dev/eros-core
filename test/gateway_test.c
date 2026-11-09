@@ -165,6 +165,32 @@ void test_answers_reach_only_the_host_that_asked(void)
     eros_router_delete(router);
 }
 
+void test_package_frame_is_the_header_and_the_data(void)
+{
+    eros_router_t *router = eros_router_new(ROUTER_REALM, ENDPOINTS_COUNT);
+    eros_endpoint_t *server = eros_buffered_endpoint_new(SERVER_ID, router, QUEUE_SIZE);
+    eros_endpoint_t *gateway = eros_buffered_gateway_endpoint_new(14, router, QUEUE_SIZE, 5);
+
+    eros_router_register_endpoint(router, server);
+    eros_router_register_endpoint(router, gateway);
+    eros_endpoint_send_data_with_seq(server, (eros_id_t){.id = 1, .realm_id = 5}, 7,
+                                     (uint8_t *)"abc", 3, 0);
+
+    // As it goes on the wire: to 1@5, from the server, sequence 7, then the data
+    eros_package_t *package = eros_buffered_gateway_endpoint_receive(gateway, 100);
+    TEST_ASSERT_NOT_NULL(package);
+    size_t size;
+    const uint8_t *frame = eros_package_frame(package, &size);
+    const uint8_t expected[] = {1 << 4 | 5, SERVER_ID << 4 | ROUTER_REALM, 7, 'a', 'b', 'c'};
+    TEST_ASSERT_EQUAL(sizeof(expected), size);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, frame, sizeof(expected));
+    eros_package_delete(package);
+
+    eros_endpoint_delete(gateway);
+    eros_endpoint_delete(server);
+    eros_router_delete(router);
+}
+
 void test_group_output_reaches_a_pool_once(void)
 {
     eros_router_t *router = eros_router_new(ROUTER_REALM, ENDPOINTS_COUNT);
@@ -236,6 +262,7 @@ int main(void)
     RUN_TEST(test_ingest_sets_the_hosts_source_realm);
     RUN_TEST(test_pool_refuses_a_realm_it_does_not_serve);
     RUN_TEST(test_answers_reach_only_the_host_that_asked);
+    RUN_TEST(test_package_frame_is_the_header_and_the_data);
     RUN_TEST(test_group_output_reaches_a_pool_once);
     RUN_TEST(test_unbuffered_gateway_gets_its_realms_packages);
     RUN_TEST(test_register_refuses_when_the_router_is_full);

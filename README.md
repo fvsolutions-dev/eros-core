@@ -138,8 +138,10 @@ eros_router_register_endpoint(router, pool);
 // A frame from the host in slot 2
 eros_endpoint_gateway_ingest_from(pool, 5 + 2, frame, size, timeout_ms);
 
-// Out: the package's header is in front of its data
+// Out: the package as a frame, its header and its data
 eros_package_t *pkg = eros_buffered_gateway_endpoint_receive(pool, timeout_ms);
+size_t size;
+uint8_t *frame = eros_package_frame(pkg, &size);
 if (pkg->type == EROS_PACKAGE_TYPE_ID) {
     // to the host in slot pkg->target.destination.realm_id - 5
 } else {

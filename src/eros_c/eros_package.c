@@ -82,6 +82,13 @@ void eros_package_encode_header(eros_package_t *package)
   header->reserved = 0;
 }
 
+uint8_t *eros_package_frame(eros_package_t *package, size_t *size)
+{
+  // The header sits in front of the data (eros_package_new() leaves room for it)
+  *size = package->size + sizeof(eros_header_t);
+  return package->data - sizeof(eros_header_t);
+}
+
 // A package can be shared by endpoints whose tasks run on different cores: the count changes
 // atomically
 void eros_package_increase_reference(eros_package_t *package)
