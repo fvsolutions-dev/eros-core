@@ -149,7 +149,8 @@ void test_answers_reach_only_the_host_that_asked(void)
         const uint8_t *header = answer->data - sizeof(eros_header_t);
         TEST_ASSERT_EQUAL_HEX8(1 << 4 | (POOL_FIRST + 1 + i), header[0]);
         TEST_ASSERT_EQUAL_HEX8(SERVER_ID << 4 | ROUTER_REALM, header[1]);
-        TEST_ASSERT_EQUAL(5, header[2] & 0x0f);
+        // The sequence, and the reserved bits 0
+        TEST_ASSERT_EQUAL_HEX8(5, header[2]);
         eros_package_delete(answer);
     }
     TEST_ASSERT_EQUAL(0, eros_port_queue_count(other->endpoint.buffered_gateway_endpoint.queue));

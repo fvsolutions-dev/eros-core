@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `eros_package_new` no longer leaks the package when its data buffer cannot be allocated.
+- The header's 4 reserved bits go out as 0, instead of whatever the package's buffer held.
 
 ## [2.0.0] - 2026-06-16
 

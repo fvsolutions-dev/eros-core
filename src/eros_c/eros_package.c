@@ -78,6 +78,8 @@ void eros_package_encode_header(eros_package_t *package)
   header->source_id = package->source.id;
   header->source_realm = package->source.realm_id;
   header->sequence_number = package->sequence_number;
+  // Written too: the buffer comes from malloc, and its old bytes would go on the wire
+  header->reserved = 0;
 }
 
 // A package can be shared by endpoints whose tasks run on different cores: the count changes

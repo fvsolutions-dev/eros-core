@@ -15,6 +15,7 @@ typedef struct
   uint8_t source_realm : 4;
   uint8_t source_id : 4;
   uint8_t sequence_number : 4; //Sequence number for this packet, can be used in the answer
+  uint8_t reserved : 4;        // 0 on the wire
 } eros_header_t;
 
 typedef struct
