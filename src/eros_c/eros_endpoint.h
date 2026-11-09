@@ -116,14 +116,17 @@ eros_unbuffered_gateway_endpoint_new(int id, eros_router_t *router,
 
 eros_gateway_mode_enum_t
 eros_endpoint_gateway_get_mode(eros_endpoint_t *endpoint);
+/**
+ * @brief A frame from the host behind the endpoint, into the router. In promiscuous mode its
+ * source realm becomes the endpoint's realm, whatever the host wrote: the peer assigns a host its
+ * realm, so a host never needs to know it.
+ */
 int eros_endpoint_gateway_ingest(eros_endpoint_t *endpoint, uint8_t *data,
                                  size_t size, uint32_t timeout_ms);
 
 /**
- * @brief A frame from the host connection of the given realm, one of the endpoint's, into the
- * router. In promiscuous mode its source realm becomes that realm, whatever the host wrote, so
- * answers find their way back to that connection. Returns -1 for a realm that is not the
- * endpoint's.
+ * @brief As eros_endpoint_gateway_ingest(), from the host connection of the given realm, one of
+ * the endpoint's. Returns -1 for a realm that is not.
  */
 int eros_endpoint_gateway_ingest_from(eros_endpoint_t *endpoint, eros_realm_id_t realm,
                                       uint8_t *data, size_t size, uint32_t timeout_ms);

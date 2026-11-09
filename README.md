@@ -37,7 +37,9 @@ Each frame carries a 3-byte header followed by the payload:
 | reserved      | 4    |
 | sequence      | 4    |
 
-A *realm* identifies the transport (e.g. UDP=6, WebSocket=5); an *id* identifies an endpoint within that realm. Routers dispatch incoming frames to the endpoint registered under the frame's target.
+A *realm* identifies a node or a host connection; an *id* identifies an endpoint within that realm. Routers dispatch incoming frames to the endpoint registered under the frame's target.
+
+A host does not need to know its realm: the gateway endpoint it is connected to writes the realm into the source of each frame it takes in, so answers find their way back and a host cannot speak for another. Hosts match what they receive on the target id.
 
 ## Python
 

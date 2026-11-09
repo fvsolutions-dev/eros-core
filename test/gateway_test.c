@@ -1,5 +1,5 @@
-/* Pool gateway endpoints: one serves a range of realms (one per host connection), a frame from a
- * connection gets its realm as its source, and answers reach only the host that asked.
+/* Gateway endpoints: a host's source realm is set where its frame enters, a pool endpoint serves
+ * a range of realms (one per host connection), and answers reach only the host that asked.
  */
 
 #include <string.h>
@@ -52,6 +52,34 @@ static void gateway_callback(eros_endpoint_t *endpoint, uint8_t *data, size_t si
     (void)endpoint;
     memcpy(g_callback_frame, data, size);
     g_callback_size = size;
+}
+
+void test_ingest_sets_the_hosts_source_realm(void)
+{
+    eros_router_t *router = eros_router_new(ROUTER_REALM, ENDPOINTS_COUNT);
+    eros_endpoint_t *server = eros_buffered_endpoint_new(SERVER_ID, router, QUEUE_SIZE);
+    eros_endpoint_t *gateway = eros_buffered_gateway_endpoint_new(14, router, QUEUE_SIZE, 5);
+    uint8_t frame[16];
+
+    eros_router_register_endpoint(router, server);
+    eros_router_register_endpoint(router, gateway);
+
+    // The host writes realm 9; it is in realm 5
+    size_t size = make_frame(frame, SERVER_ID, ROUTER_REALM, 1, 9, 3, "hi");
+    TEST_ASSERT_EQUAL(0, eros_endpoint_gateway_ingest(gateway, frame, size, 0));
+
+    eros_package_t *package = eros_buffered_endpoint_receive(server, 100);
+    TEST_ASSERT_NOT_NULL(package);
+    TEST_ASSERT_EQUAL(1, package->source.id);
+    TEST_ASSERT_EQUAL(5, package->source.realm_id);
+    TEST_ASSERT_EQUAL(3, package->sequence_number);
+    TEST_ASSERT_EQUAL(2, package->size);
+    TEST_ASSERT_EQUAL_MEMORY("hi", package->data, 2);
+    eros_package_delete(package);
+
+    eros_endpoint_delete(gateway);
+    eros_endpoint_delete(server);
+    eros_router_delete(router);
 }
 
 void test_pool_refuses_a_realm_it_does_not_serve(void)
@@ -189,6 +217,7 @@ void test_unbuffered_gateway_gets_its_realms_packages(void)
 int main(void)
 {
     UNITY_BEGIN();
+    RUN_TEST(test_ingest_sets_the_hosts_source_realm);
     RUN_TEST(test_pool_refuses_a_realm_it_does_not_serve);
     RUN_TEST(test_answers_reach_only_the_host_that_asked);
     RUN_TEST(test_group_output_reaches_a_pool_once);

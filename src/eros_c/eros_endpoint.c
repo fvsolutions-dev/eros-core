@@ -335,25 +335,6 @@ int eros_endpoint_publish_data(eros_endpoint_t *endpoint, eros_group_t group,
   return 0;
 }
 
-int eros_endpoint_publish_headered_data(eros_endpoint_t *endpoint,
-                                        uint8_t *data, size_t size,
-                                        uint32_t timeout_ms)
-{
-
-  eros_package_t *package = eros_headered_package_new(data, size);
-
-  if (package == NULL)
-  {
-    return -1;
-  }
-
-  eros_print_packag_debug("RX", package);
-
-  eros_router_route(endpoint->router, package, timeout_ms);
-  eros_package_delete(package);
-  return 0;
-}
-
 /** @brief A frame with its header into the router, its source realm set to the host's. */
 static int publish_headered_data(eros_endpoint_t *endpoint, eros_realm_id_t realm, uint8_t *data,
                                  size_t size, uint32_t timeout_ms)
@@ -378,25 +359,12 @@ static int publish_headered_data(eros_endpoint_t *endpoint, eros_realm_id_t real
 int eros_endpoint_gateway_ingest(eros_endpoint_t *endpoint, uint8_t *data,
                                  size_t size, uint32_t timeout_ms)
 {
+  // The host's realm: the endpoint's own
+  eros_realm_id_t realm = endpoint->type == EROS_UNBUFFERED_GATEWAY
+                              ? endpoint->endpoint.unbuffered_gateway_endpoint.remote_realm_id
+                              : endpoint->endpoint.buffered_gateway_endpoint.remote_realm_id;
 
-  eros_gateway_mode_enum_t mode = eros_endpoint_gateway_get_mode(endpoint);
-
-  if (mode == EROS_GATEWAY_MODE_PROMISCUOUS)
-  {
-    return eros_endpoint_publish_headered_data(endpoint, data, size, timeout_ms);
-  }
-  else if (mode == EROS_GATEWAY_MODE_FIXED_GROUP)
-  {
-    return eros_endpoint_publish_data(
-        endpoint, endpoint->endpoint.unbuffered_gateway_endpoint.fixed_group,
-        data, size, timeout_ms);
-  }
-  else
-  {
-    return eros_endpoint_send_data(
-        endpoint, endpoint->endpoint.unbuffered_gateway_endpoint.fixed_target,
-        data, size, timeout_ms);
-  }
+  return eros_endpoint_gateway_ingest_from(endpoint, realm, data, size, timeout_ms);
 }
 
 int eros_endpoint_gateway_ingest_from(eros_endpoint_t *endpoint, eros_realm_id_t realm,

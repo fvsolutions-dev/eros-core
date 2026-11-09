@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   realms, one per host connection, and `eros_endpoint_gateway_ingest_from` takes a frame from the
   connection of a given realm.
 
+### Changed
+- A gateway endpoint writes its host's realm into the source of each frame it takes in, in place
+  of the realm the host wrote.
+- The Python client delivers a received message to the endpoint with its target id, whatever the
+  target realm.
+
 ## [2.0.0] - 2026-06-16
 
 First release from `fvsolutions-dev/eros-core`

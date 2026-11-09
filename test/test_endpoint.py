@@ -172,3 +172,36 @@ def test_server_client_echo():
             eros.stop()
 
     run(body())
+
+
+def test_reply_to_an_assigned_realm_reaches_the_endpoint():
+    """A gateway assigns the host its realm: a reply to that realm reaches the endpoint by its id."""
+
+    async def body():
+        transport = LoopbackPacketTransport()
+        eros = ErosInterface(transport)
+        source = ErosTarget(id=1, realm=0)
+        endpoint = ErosEndpoint(eros=eros, source=source, target=ErosTarget(id=2, realm=0))
+
+        received: list[bytes] = []
+        endpoint.unexpected_message_callback = received.append
+
+        try:
+            reply = ErosMessage(
+                target=ErosTarget(id=1, realm=6),
+                source=ErosTarget(id=2, realm=0),
+                sequence=3,
+                data=b"answer",
+            )
+            await transport.send(reply.encode())
+
+            for _ in range(50):
+                if received:
+                    break
+                await asyncio.sleep(0.01)
+
+            assert received == [b"answer"]
+        finally:
+            eros.stop()
+
+    run(body())

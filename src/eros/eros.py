@@ -101,10 +101,13 @@ class ErosInterface:
                 if packet is None:
                     continue
 
-                if packet.target in self.endpoints:
+                # By the id only: the peer assigns this host its realm, which can differ from the one
+                # the endpoint was made with
+                endpoint = next((e for t, e in self.endpoints.items() if t.id == packet.target.id), None)
+                if endpoint is not None:
                     if self.debug:
                         print(f"RX     {packet}")
-                    self.endpoints[packet.target].on_receive(packet)
+                    endpoint.on_receive(packet)
                 else:
                     if self.debug:
                         print(f"RX void {packet}")
