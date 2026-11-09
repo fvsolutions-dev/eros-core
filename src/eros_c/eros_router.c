@@ -53,6 +53,22 @@ void eros_router_register_endpoint(eros_router_t *router, eros_endpoint_t *endpo
     router->endpoint_count++;
 }
 
+/** @brief The realms behind a gateway endpoint, a bit each; none for any other endpoint. */
+static uint16_t gateway_realms(const eros_endpoint_t *endpoint)
+{
+    switch (endpoint->type)
+    {
+    // A gateway endpoint: its realms
+    case EROS_GATEWAY_BUFFERED:
+        return endpoint->endpoint.buffered_gateway_endpoint.realms;
+    case EROS_UNBUFFERED_GATEWAY:
+        return endpoint->endpoint.unbuffered_gateway_endpoint.realms;
+    // Any other: none
+    default:
+        return 0;
+    }
+}
+
 void eros_router_route(eros_router_t *router, eros_package_t *package, uint32_t timeout_ms)
 {
     for (int i = 0; i < router->endpoint_count; i++)
@@ -65,7 +81,9 @@ void eros_router_route(eros_router_t *router, eros_package_t *package, uint32_t 
             {
                 send_to_endpoint = true;
             }
-            else if ((router->endpoints[i]->type == EROS_GATEWAY_BUFFERED || router->endpoints[i]->type == EROS_UNBUFFERED_GATEWAY) && router->endpoints[i]->endpoint.buffered_gateway_endpoint.remote_realm_id == package->target.destination.realm_id)
+            // A gateway endpoint with the destination's realm behind it
+            else if (package->target.destination.realm_id < 16 &&
+                     (gateway_realms(router->endpoints[i]) & (1u << package->target.destination.realm_id)))
             {
                 send_to_endpoint = true;
             }

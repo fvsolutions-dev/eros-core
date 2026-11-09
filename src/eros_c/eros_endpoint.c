@@ -113,6 +113,7 @@ eros_buffered_gateway_endpoint_new(int id, eros_router_t *router,
           {
               .queue = queue,
               .remote_realm_id = remote_realm_id,
+              .realms = (uint16_t)(1u << remote_realm_id),
               .gateway_mode = EROS_GATEWAY_MODE_PROMISCUOUS,
           },
       .router = router,
@@ -128,6 +129,24 @@ eros_buffered_gateway_endpoint_new(int id, eros_router_t *router,
 
   memcpy(endpoint_ptr, &endpoint, sizeof(eros_endpoint_t));
   return endpoint_ptr;
+}
+
+eros_endpoint_t *eros_buffered_gateway_pool_new(int id, eros_router_t *router, int queue_size,
+                                                eros_realm_id_t first_realm, int realm_count)
+{
+  assert(realm_count > 0 && first_realm + realm_count <= 16);
+
+  eros_endpoint_t *endpoint =
+      eros_buffered_gateway_endpoint_new(id, router, queue_size, first_realm);
+
+  if (endpoint == NULL)
+  {
+    return NULL;
+  }
+  // Every realm of the range, a bit each
+  endpoint->endpoint.buffered_gateway_endpoint.realms =
+      (uint16_t)(((1u << realm_count) - 1) << first_realm);
+  return endpoint;
 }
 
 eros_endpoint_t *
@@ -148,6 +167,7 @@ eros_unbuffered_gateway_endpoint_new(int id, eros_router_t *router,
           {
               .callback = callback,
               .remote_realm_id = remote_realm_id,
+              .realms = (uint16_t)(1u << remote_realm_id),
               .gateway_mode = EROS_GATEWAY_MODE_PROMISCUOUS,
           },
       .router = router,
@@ -334,6 +354,27 @@ int eros_endpoint_publish_headered_data(eros_endpoint_t *endpoint,
   return 0;
 }
 
+/** @brief A frame with its header into the router, its source realm set to the host's. */
+static int publish_headered_data(eros_endpoint_t *endpoint, eros_realm_id_t realm, uint8_t *data,
+                                 size_t size, uint32_t timeout_ms)
+{
+  eros_package_t *package = eros_headered_package_new(data, size);
+
+  if (package == NULL)
+  {
+    return -1;
+  }
+  // The realm the host is in, not the one it wrote: answers find their way back to it, and a host
+  // cannot speak for another
+  package->source.realm_id = realm;
+
+  eros_print_packag_debug("RX", package);
+
+  eros_router_route(endpoint->router, package, timeout_ms);
+  eros_package_delete(package);
+  return 0;
+}
+
 int eros_endpoint_gateway_ingest(eros_endpoint_t *endpoint, uint8_t *data,
                                  size_t size, uint32_t timeout_ms)
 {
@@ -343,6 +384,37 @@ int eros_endpoint_gateway_ingest(eros_endpoint_t *endpoint, uint8_t *data,
   if (mode == EROS_GATEWAY_MODE_PROMISCUOUS)
   {
     return eros_endpoint_publish_headered_data(endpoint, data, size, timeout_ms);
+  }
+  else if (mode == EROS_GATEWAY_MODE_FIXED_GROUP)
+  {
+    return eros_endpoint_publish_data(
+        endpoint, endpoint->endpoint.unbuffered_gateway_endpoint.fixed_group,
+        data, size, timeout_ms);
+  }
+  else
+  {
+    return eros_endpoint_send_data(
+        endpoint, endpoint->endpoint.unbuffered_gateway_endpoint.fixed_target,
+        data, size, timeout_ms);
+  }
+}
+
+int eros_endpoint_gateway_ingest_from(eros_endpoint_t *endpoint, eros_realm_id_t realm,
+                                      uint8_t *data, size_t size, uint32_t timeout_ms)
+{
+  eros_gateway_mode_enum_t mode = eros_endpoint_gateway_get_mode(endpoint);
+  uint16_t realms = endpoint->type == EROS_UNBUFFERED_GATEWAY
+                        ? endpoint->endpoint.unbuffered_gateway_endpoint.realms
+                        : endpoint->endpoint.buffered_gateway_endpoint.realms;
+
+  // Only from a host connection of this endpoint
+  if (realm >= 16 || !(realms & (1u << realm)))
+  {
+    return -1;
+  }
+  if (mode == EROS_GATEWAY_MODE_PROMISCUOUS)
+  {
+    return publish_headered_data(endpoint, realm, data, size, timeout_ms);
   }
   else if (mode == EROS_GATEWAY_MODE_FIXED_GROUP)
   {

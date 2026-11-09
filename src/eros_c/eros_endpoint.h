@@ -45,6 +45,9 @@ typedef struct
 typedef struct
 {
   eros_realm_id_t remote_realm_id;
+  // The realms behind this endpoint, a bit each: the router hands it every package addressed to
+  // one of them. One realm per host connection (eros_buffered_gateway_pool_new())
+  uint16_t realms;
   eros_port_queue_t *queue;
   eros_gateway_mode_enum_t gateway_mode;
   eros_id_t fixed_target;
@@ -54,6 +57,8 @@ typedef struct
 typedef struct
 {
   eros_realm_id_t remote_realm_id;
+  // As the buffered gateway endpoint's
+  uint16_t realms;
   eros_data_callback_t callback;
   eros_gateway_mode_enum_t gateway_mode;
   eros_id_t fixed_target;
@@ -95,6 +100,15 @@ eros_buffered_gateway_endpoint_new(int id, eros_router_t *router,
                                    int queue_size,
                                    eros_realm_id_t remote_realm_id);
 
+/**
+ * @brief A buffered gateway endpoint for several host connections, a realm each: first_realm to
+ * first_realm + realm_count - 1. A transport ingests each connection's frames with
+ * eros_endpoint_gateway_ingest_from() and, for a package addressed to one realm, sends it to
+ * that connection only.
+ */
+eros_endpoint_t *eros_buffered_gateway_pool_new(int id, eros_router_t *router, int queue_size,
+                                                eros_realm_id_t first_realm, int realm_count);
+
 eros_endpoint_t *
 eros_unbuffered_gateway_endpoint_new(int id, eros_router_t *router,
                                      eros_realm_id_t remote_realm_id,
@@ -104,6 +118,15 @@ eros_gateway_mode_enum_t
 eros_endpoint_gateway_get_mode(eros_endpoint_t *endpoint);
 int eros_endpoint_gateway_ingest(eros_endpoint_t *endpoint, uint8_t *data,
                                  size_t size, uint32_t timeout_ms);
+
+/**
+ * @brief A frame from the host connection of the given realm, one of the endpoint's, into the
+ * router. In promiscuous mode its source realm becomes that realm, whatever the host wrote, so
+ * answers find their way back to that connection. Returns -1 for a realm that is not the
+ * endpoint's.
+ */
+int eros_endpoint_gateway_ingest_from(eros_endpoint_t *endpoint, eros_realm_id_t realm,
+                                      uint8_t *data, size_t size, uint32_t timeout_ms);
 
 void eros_gateway_set_fixed_id_mode(eros_endpoint_t *endpoint,
                                     eros_id_t target);

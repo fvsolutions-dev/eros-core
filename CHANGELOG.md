@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Pool gateway endpoints (`eros_buffered_gateway_pool_new`): one endpoint serves a range of
+  realms, one per host connection, and `eros_endpoint_gateway_ingest_from` takes a frame from the
+  connection of a given realm.
+
 ## [2.0.0] - 2026-06-16
 
 First release from `fvsolutions-dev/eros-core`

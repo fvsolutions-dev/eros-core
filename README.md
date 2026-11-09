@@ -124,6 +124,27 @@ eros_endpoint_publish_data(publisher, /* group */ 1, data, size, timeout_ms);
 
 Subscribers can be buffered (queue) or unbuffered (callback); both are valid sinks for the same group. Gateway endpoints bridge groups across realms.
 
+### A gateway endpoint for several hosts
+
+A pool endpoint serves a range of realms, one per host connection. The transport passes each connection's frames in with its realm, and sends a package addressed to one realm to that connection only; a group package goes to all of them.
+
+```c
+// Realms 5 to 8: up to 4 hosts
+eros_endpoint_t *pool = eros_buffered_gateway_pool_new(id, router, queue_size, 5, 4);
+eros_router_register_endpoint(router, pool);
+
+// A frame from the host in slot 2
+eros_endpoint_gateway_ingest_from(pool, 5 + 2, frame, size, timeout_ms);
+
+// Out: the package's header is in front of its data
+eros_package_t *pkg = eros_buffered_gateway_endpoint_receive(pool, timeout_ms);
+if (pkg->type == EROS_PACKAGE_TYPE_ID) {
+    // to the host in slot pkg->target.destination.realm_id - 5
+} else {
+    // to every host
+}
+```
+
 ## Development
 
 ```sh
