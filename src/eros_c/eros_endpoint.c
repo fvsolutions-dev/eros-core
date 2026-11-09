@@ -202,6 +202,21 @@ void eros_gateway_set_fixed_id_mode(eros_endpoint_t *endpoint,
   }
 }
 
+void eros_gateway_set_realms(eros_endpoint_t *endpoint, uint16_t realms)
+{
+  assert(endpoint);
+  // Never the router's own realm (eros_endpoint.h)
+  realms &= (uint16_t)~(1u << endpoint->router->realm_id);
+  if (endpoint->type == EROS_UNBUFFERED_GATEWAY)
+  {
+    endpoint->endpoint.unbuffered_gateway_endpoint.realms = realms;
+  }
+  else
+  {
+    endpoint->endpoint.buffered_gateway_endpoint.realms = realms;
+  }
+}
+
 void eros_gateway_set_fixed_target_group_mode(eros_endpoint_t *endpoint,
                                               eros_group_t group)
 {
@@ -359,11 +374,23 @@ static int publish_headered_data(eros_endpoint_t *endpoint, eros_realm_id_t real
 int eros_endpoint_gateway_ingest(eros_endpoint_t *endpoint, uint8_t *data,
                                  size_t size, uint32_t timeout_ms)
 {
-  // The host's realm: the endpoint's own
-  eros_realm_id_t realm = endpoint->type == EROS_UNBUFFERED_GATEWAY
-                              ? endpoint->endpoint.unbuffered_gateway_endpoint.remote_realm_id
-                              : endpoint->endpoint.buffered_gateway_endpoint.remote_realm_id;
+  bool unbuffered = endpoint->type == EROS_UNBUFFERED_GATEWAY;
+  uint16_t realms = unbuffered ? endpoint->endpoint.unbuffered_gateway_endpoint.realms
+                               : endpoint->endpoint.buffered_gateway_endpoint.realms;
+  // The endpoint's own realm, for a frame from a realm that is not behind it (a host's)
+  eros_realm_id_t realm = unbuffered ? endpoint->endpoint.unbuffered_gateway_endpoint.remote_realm_id
+                                     : endpoint->endpoint.buffered_gateway_endpoint.remote_realm_id;
 
+  // A frame from a realm behind the endpoint (through another router) keeps it
+  if (size >= sizeof(eros_header_t))
+  {
+    eros_realm_id_t source = ((const eros_header_t *)data)->source_realm;
+
+    if (realms & (1u << source))
+    {
+      realm = source;
+    }
+  }
   return eros_endpoint_gateway_ingest_from(endpoint, realm, data, size, timeout_ms);
 }
 

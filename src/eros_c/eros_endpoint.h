@@ -117,9 +117,10 @@ eros_unbuffered_gateway_endpoint_new(int id, eros_router_t *router,
 eros_gateway_mode_enum_t
 eros_endpoint_gateway_get_mode(eros_endpoint_t *endpoint);
 /**
- * @brief A frame from the host behind the endpoint, into the router. In promiscuous mode its
- * source realm becomes the endpoint's realm, whatever the host wrote: the peer assigns a host its
- * realm, so a host never needs to know it.
+ * @brief A frame from behind the endpoint, into the router. In promiscuous mode its source realm
+ * stays when it is one of the endpoint's realms (another router's link,
+ * eros_gateway_set_realms()), else it becomes the endpoint's own realm, whatever a host wrote: the
+ * peer assigns a host its realm, so a host never needs to know it.
  */
 int eros_endpoint_gateway_ingest(eros_endpoint_t *endpoint, uint8_t *data,
                                  size_t size, uint32_t timeout_ms);
@@ -133,6 +134,15 @@ int eros_endpoint_gateway_ingest_from(eros_endpoint_t *endpoint, eros_realm_id_t
 
 void eros_gateway_set_fixed_id_mode(eros_endpoint_t *endpoint,
                                     eros_id_t target);
+
+/**
+ * @brief The realms behind a gateway endpoint, a bit each, in place of the ones it was made with:
+ * the router hands it every package addressed to one of them. For a link to another router, the
+ * realms that router reaches; on the far side, every realm but its own makes the link its default
+ * route. The router's own realm is left out: a package for a local endpoint that is missing does
+ * not go back out. Only one side of a link may take every realm, or such packages bounce.
+ */
+void eros_gateway_set_realms(eros_endpoint_t *endpoint, uint16_t realms);
 
 void eros_gateway_set_fixed_target_group_mode(eros_endpoint_t *endpoint,
                                               eros_group_t group);

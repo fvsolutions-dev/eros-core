@@ -1,5 +1,6 @@
 /* Gateway endpoints: a host's source realm is set where its frame enters, a pool endpoint serves
- * a range of realms (one per host connection), and answers reach only the host that asked.
+ * a range of realms (one per host connection), and answers reach only the host that asked, also
+ * through a second router.
  */
 
 #include <string.h>
@@ -34,6 +35,25 @@ static size_t make_frame(uint8_t *frame, uint8_t target_id, uint8_t target_realm
     frame[2] = sequence;
     memcpy(frame + 3, data, data_size);
     return 3 + data_size;
+}
+
+// Two routers linked by a pair of unbuffered gateway endpoints: what one hands over, the other
+// takes in (gateway_test's two-hop test)
+static eros_endpoint_t *g_gateway_to_imu;
+static eros_endpoint_t *g_imu_uplink;
+
+/** @brief The gateway's link to the IMU: the frame into the IMU's router. */
+static void to_imu(eros_endpoint_t *endpoint, uint8_t *data, size_t size)
+{
+    (void)endpoint;
+    eros_endpoint_gateway_ingest(g_imu_uplink, data, size, 0);
+}
+
+/** @brief The IMU's uplink: the frame into the gateway's router. */
+static void to_gateway(eros_endpoint_t *endpoint, uint8_t *data, size_t size)
+{
+    (void)endpoint;
+    eros_endpoint_gateway_ingest(g_gateway_to_imu, data, size, 0);
 }
 
 /** @brief Every package waiting on a buffered endpoint, dropped. */
@@ -241,6 +261,82 @@ void test_unbuffered_gateway_gets_its_realms_packages(void)
     eros_router_delete(router);
 }
 
+void test_an_answer_finds_its_host_over_two_hops(void)
+{
+    // The gateway (realm 0): a pool of hosts and the link to the IMU, realm 14
+    eros_router_t *gateway = eros_router_new(ROUTER_REALM, ENDPOINTS_COUNT);
+    eros_endpoint_t *pool =
+        eros_buffered_gateway_pool_new(11, gateway, QUEUE_SIZE, POOL_FIRST, POOL_COUNT);
+    g_gateway_to_imu = eros_unbuffered_gateway_endpoint_new(10, gateway, 14, to_imu);
+    eros_router_register_endpoint(gateway, pool);
+    eros_router_register_endpoint(gateway, g_gateway_to_imu);
+
+    // The IMU (realm 14): its management endpoint and the uplink, its default route
+    eros_router_t *imu = eros_router_new(14, ENDPOINTS_COUNT);
+    eros_endpoint_t *management = eros_buffered_endpoint_new(SERVER_ID, imu, QUEUE_SIZE);
+    g_imu_uplink = eros_unbuffered_gateway_endpoint_new(10, imu, ROUTER_REALM, to_gateway);
+    eros_gateway_set_realms(g_imu_uplink, 0xffff);
+    eros_router_register_endpoint(imu, management);
+    eros_router_register_endpoint(imu, g_imu_uplink);
+
+    // A host in the pool's second realm asks the IMU's management
+    uint8_t frame[16];
+    size_t size = make_frame(frame, SERVER_ID, 14, 1, 0, 5, "get");
+    TEST_ASSERT_EQUAL(0, eros_endpoint_gateway_ingest_from(pool, POOL_FIRST + 1, frame, size, 0));
+
+    // At the IMU: from the host's realm, kept over the hop
+    eros_package_t *request = eros_buffered_endpoint_receive(management, 100);
+    TEST_ASSERT_NOT_NULL(request);
+    TEST_ASSERT_EQUAL(1, request->source.id);
+    TEST_ASSERT_EQUAL(POOL_FIRST + 1, request->source.realm_id);
+    eros_endpoint_send_data_with_seq(management, request->source, request->sequence_number,
+                                     (uint8_t *)"42", 2, 0);
+    eros_package_delete(request);
+
+    // Back at the gateway: to that host's realm, from the IMU's management
+    eros_package_t *answer = eros_buffered_gateway_endpoint_receive(pool, 100);
+    TEST_ASSERT_NOT_NULL(answer);
+    size_t answer_size;
+    const uint8_t *answer_frame = eros_package_frame(answer, &answer_size);
+    const uint8_t expected[] = {1 << 4 | (POOL_FIRST + 1), SERVER_ID << 4 | 14, 5, '4', '2'};
+    TEST_ASSERT_EQUAL(sizeof(expected), answer_size);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(expected, answer_frame, sizeof(expected));
+    eros_package_delete(answer);
+
+    // A package for a missing endpoint in the IMU's own realm stays there: no bounce
+    eros_endpoint_send_data(management, (eros_id_t){.id = 7, .realm_id = 14}, (uint8_t *)"x", 1, 0);
+    TEST_ASSERT_EQUAL(0, eros_port_queue_count(pool->endpoint.buffered_gateway_endpoint.queue));
+
+    eros_endpoint_delete(g_imu_uplink);
+    eros_endpoint_delete(management);
+    eros_router_delete(imu);
+    eros_endpoint_delete(g_gateway_to_imu);
+    eros_endpoint_delete(pool);
+    eros_router_delete(gateway);
+}
+
+void test_a_host_cannot_claim_a_realm_behind_another_link(void)
+{
+    eros_router_t *router = eros_router_new(ROUTER_REALM, ENDPOINTS_COUNT);
+    eros_endpoint_t *server = eros_buffered_endpoint_new(SERVER_ID, router, QUEUE_SIZE);
+    eros_endpoint_t *host = eros_buffered_gateway_endpoint_new(14, router, QUEUE_SIZE, 4);
+    eros_router_register_endpoint(router, server);
+    eros_router_register_endpoint(router, host);
+
+    // The host on realm 4 writes realm 6, another link's: it is in realm 4
+    uint8_t frame[16];
+    size_t size = make_frame(frame, SERVER_ID, ROUTER_REALM, 1, 6, 0, "x");
+    TEST_ASSERT_EQUAL(0, eros_endpoint_gateway_ingest(host, frame, size, 0));
+    eros_package_t *package = eros_buffered_endpoint_receive(server, 100);
+    TEST_ASSERT_NOT_NULL(package);
+    TEST_ASSERT_EQUAL(4, package->source.realm_id);
+    eros_package_delete(package);
+
+    eros_endpoint_delete(host);
+    eros_endpoint_delete(server);
+    eros_router_delete(router);
+}
+
 void test_register_refuses_when_the_router_is_full(void)
 {
     eros_router_t *router = eros_router_new(ROUTER_REALM, 1);
@@ -265,6 +361,8 @@ int main(void)
     RUN_TEST(test_package_frame_is_the_header_and_the_data);
     RUN_TEST(test_group_output_reaches_a_pool_once);
     RUN_TEST(test_unbuffered_gateway_gets_its_realms_packages);
+    RUN_TEST(test_an_answer_finds_its_host_over_two_hops);
+    RUN_TEST(test_a_host_cannot_claim_a_realm_behind_another_link);
     RUN_TEST(test_register_refuses_when_the_router_is_full);
     return UNITY_END();
 }

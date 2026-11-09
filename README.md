@@ -149,6 +149,21 @@ if (pkg->type == EROS_PACKAGE_TYPE_ID) {
 }
 ```
 
+### Routes over more than one hop
+
+Two routers are linked by a gateway endpoint on each side. A link's endpoint takes the realms behind it with `eros_gateway_set_realms`; a frame coming in from one of those realms keeps its source realm, so an answer finds its way back through both routers. On the far side, every realm but the router's own makes the link its default route:
+
+```c
+// The gateway (realm 0): its link to the IMU, realm 14 behind it
+eros_endpoint_t *to_imu = eros_unbuffered_gateway_endpoint_new(id, gateway, 14, send_to_imu);
+
+// The IMU (realm 14): everything that is not its own goes up to the gateway
+eros_endpoint_t *uplink = eros_unbuffered_gateway_endpoint_new(id, imu, 0, send_to_gateway);
+eros_gateway_set_realms(uplink, 0xffff);
+```
+
+Only one side of a link takes every realm, or a package for a realm nobody serves goes back and forth.
+
 ## Development
 
 ```sh
