@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of the realm the host wrote.
 - The Python client delivers a received message to the endpoint with its target id, whatever the
   target realm.
+- `eros_router_register_endpoint` returns -1 when the router is full, instead of writing past its
+  table.
+
+### Fixed
+- `eros_package_new` no longer leaks the package when its data buffer cannot be allocated.
 
 ## [2.0.0] - 2026-06-16
 

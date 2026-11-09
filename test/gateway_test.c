@@ -214,6 +214,21 @@ void test_unbuffered_gateway_gets_its_realms_packages(void)
     eros_router_delete(router);
 }
 
+void test_register_refuses_when_the_router_is_full(void)
+{
+    eros_router_t *router = eros_router_new(ROUTER_REALM, 1);
+    eros_endpoint_t *first = eros_buffered_endpoint_new(1, router, QUEUE_SIZE);
+    eros_endpoint_t *second = eros_buffered_endpoint_new(2, router, QUEUE_SIZE);
+
+    TEST_ASSERT_EQUAL(0, eros_router_register_endpoint(router, first));
+    TEST_ASSERT_EQUAL(-1, eros_router_register_endpoint(router, second));
+    TEST_ASSERT_EQUAL(1, router->endpoint_count);
+
+    eros_endpoint_delete(second);
+    eros_endpoint_delete(first);
+    eros_router_delete(router);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -222,5 +237,6 @@ int main(void)
     RUN_TEST(test_answers_reach_only_the_host_that_asked);
     RUN_TEST(test_group_output_reaches_a_pool_once);
     RUN_TEST(test_unbuffered_gateway_gets_its_realms_packages);
+    RUN_TEST(test_register_refuses_when_the_router_is_full);
     return UNITY_END();
 }

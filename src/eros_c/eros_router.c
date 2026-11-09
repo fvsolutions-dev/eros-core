@@ -47,10 +47,16 @@ void eros_router_delete(eros_router_t *router)
     free(router);
 }
 
-void eros_router_register_endpoint(eros_router_t *router, eros_endpoint_t *endpoint)
+int eros_router_register_endpoint(eros_router_t *router, eros_endpoint_t *endpoint)
 {
+    // Full: the table is not written past
+    if (router->endpoint_count >= router->endpoint_limit)
+    {
+        return -1;
+    }
     router->endpoints[router->endpoint_count] = endpoint;
     router->endpoint_count++;
+    return 0;
 }
 
 /** @brief The realms behind a gateway endpoint, a bit each; none for any other endpoint. */

@@ -15,7 +15,8 @@ struct eros_router_t
 eros_router_t *eros_router_new(int realm_id, int endpoints_count);
 void eros_router_delete(eros_router_t *router);
 
-void eros_router_register_endpoint(eros_router_t *router, eros_endpoint_t *endpoint);
+// Returns -1 when the router is full (endpoints_count, eros_router_new())
+int eros_router_register_endpoint(eros_router_t *router, eros_endpoint_t *endpoint);
 void eros_router_route(eros_router_t *router, eros_package_t *package, uint32_t timeout_ms);
 
 #endif // EROS_ROUTER_H

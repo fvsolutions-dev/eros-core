@@ -27,7 +27,7 @@ eros_package_t *eros_package_new(uint8_t *data, size_t size)
   uint8_t *data_buffer = malloc(size + sizeof(eros_header_t));
   if (data_buffer == NULL)
   {
-    free(data_buffer);
+    free(package);
     return NULL;
   }
 
