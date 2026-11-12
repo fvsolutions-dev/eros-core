@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `eros_package_frame`: a package as its frame on the wire, header and data in one buffer.
 - `eros_gateway_set_realms`: the realms behind a gateway endpoint, for a link to another router;
   a frame from one of them keeps its source realm, so answers find their way back over two hops.
+- `eros_stream.h`: eros frames on a byte stream, burst-link framed. Not in the library's own
+  sources: a project that uses it compiles `eros_stream.c` and builds burst-link-protocol too.
 
 ### Changed
 - A gateway endpoint writes its host's realm into the source of each frame it takes in, in place

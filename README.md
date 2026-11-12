@@ -164,6 +164,22 @@ eros_gateway_set_realms(uplink, 0xffff);
 
 Only one side of a link takes every realm, or a package for a realm nobody serves goes back and forth.
 
+### Frames on a byte stream
+
+`eros_stream.h` puts eros frames on a byte stream (a UART, a USB CDC port, a BLE characteristic), burst-link framed: COBS and a CRC-16. It is not part of the library's own sources: a project that uses it compiles `src/eros_c/eros_stream.c` and builds [burst-link-protocol](https://github.com/fvsolutions-dev/burst-link-protocol) too, so eros itself does not need burst-link.
+
+```c
+eros_stream_t stream;
+eros_stream_init(&stream, endpoint, EROS_STREAM_OWN_REALM);   // or a pool's realm
+
+// In: bytes as they come, in any pieces; each whole frame goes into the router
+eros_stream_receive(&stream, bytes, size);
+
+// Out: a package the endpoint received, as framed bytes
+uint8_t buffer[EROS_STREAM_MAX_ENCODED];
+size_t framed = eros_stream_encode(pkg, buffer, sizeof(buffer));
+```
+
 ## Development
 
 ```sh
@@ -174,6 +190,8 @@ make lint     # ruff
 make build    # python wheel + c library
 make clean
 ```
+
+The C tests fetch [burst-link-protocol](https://github.com/fvsolutions-dev/burst-link-protocol) for `eros_stream`'s test. Offline, or with a checkout at hand, configure with `-DFETCHCONTENT_SOURCE_DIR_BURST_LINK=<path>` instead.
 
 Type-check the Python sources with [`ty`](https://github.com/astral-sh/ty):
 
